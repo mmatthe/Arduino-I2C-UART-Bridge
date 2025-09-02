@@ -12,6 +12,7 @@ import time
 import sys
 import argparse
 import logging
+import re
 from datetime import datetime
 
 
@@ -67,17 +68,21 @@ def run_command_file(port, baudrate, command_file):
                 # Handle EXPECT command (host-only syntax)
                 if command.upper().startswith("EXPECT "):
                     expected = command[7:].strip()
-                    if expected.startswith('"') and expected.endswith('"'):
-                        expected = expected[1:-1]  # Remove quotes
-                    
+                    expected = expected.strip('"')
 
-                    # Read the last response from Arduino
-                    if last_response == expected:
-                        print(f"---> EXPECT \"{expected}\" : DONE")
-                    else:
-                        logging.error(f"EXPECT failed on line {line_number}")
-                        logging.error(f"Expected: \"{expected}\"")
-                        logging.error(f"Received: \"{last_response}\"")
+                    # Check if the expected string matches using regex
+                    try:
+                        if re.match(expected, last_response):
+                            print(f"---> EXPECT \"{expected}\" ✓")
+                        else:
+                            logging.error(f"EXPECT failed on line {line_number}")
+                            logging.error(f"Expected pattern: \"{expected}\"")
+                            logging.error(f"Received: \"{last_response}\"")
+                            sys.exit(1)
+                    except re.error as e:
+                        logging.error(f"EXPECT failed on line {line_number}: Invalid regex pattern")
+                        logging.error(f"Pattern: \"{expected}\"")
+                        logging.error(f"Regex error: {e}")
                         sys.exit(1)
                     continue
                 
