@@ -2,6 +2,25 @@
 
 A simple Arduino-based bridge that allows controlling I2C devices via UART/Serial commands. This project enables easy scripting and automation of I2C communication from a host computer.
 
+## Example
+![](example.jpg)
+
+Connect an ST LSM6DSO device, and assert its device id.
+
+``` bash
+$ cat lsm6dso_who_am_I.txt
+a 6b
+wr f 1
+EXPECT 6.
+$ python run_commands.py -p /dev/ttyUSB0 lsm6dso_who_am_I.txt
+Connected to I2C bridge on /dev/ttyUSB0
+Starting execution of commands from: lsm6dso_who_am_I.txt
+---> a 6b
+---> wr f 1
+<--- 6C
+---> EXPECT "6." ✓
+```
+
 ## Features
 
 - Write bytes to I2C devices
@@ -103,10 +122,5 @@ The `EXPECT` command is a host-only feature that validates Arduino responses usi
 - `EXPECT "[A-F0-9]{2}"` - Contains 2-digit hex
 - `EXPECT "FF$"` - Ends with "FF"
 
-**Behavior:**
-- ✓ Continues execution if pattern matches
-- ❌ Exits script with error if pattern doesn't match
-- Uses the last Arduino response (excluding debug messages)
-- Supports full Python regex syntax
 
 
