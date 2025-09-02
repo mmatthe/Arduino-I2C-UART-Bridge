@@ -25,6 +25,24 @@ void debug(const String& line, bool force=false) {
 
 void parseAddress(const char* line) {
     // Parse hex byte from line and save to address variable
+    String input = String(line).trim();
+    if (input.length() == 0) {
+        debug("Error: No address provided");
+        return;
+    }
+    
+    // Convert hex string to integer
+    char* endptr;
+    long addr = strtol(input.c_str(), &endptr, 16);
+    
+    // Check if conversion was successful and address is valid I2C range (7-bit: 0x08-0x77)
+    if (*endptr != '\0' || addr < 0x08 || addr > 0x77) {
+        debug("Error: Invalid I2C address. Must be hex value between 0x08 and 0x77");
+        return;
+    }
+    
+    address = (int8_t)addr;
+    debug("I2C address set to: 0x" + String(address, HEX));
 }
 
 void readBytes(const char* line) {
