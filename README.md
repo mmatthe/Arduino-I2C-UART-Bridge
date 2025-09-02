@@ -86,7 +86,27 @@ The command file contains exactly the lines that are to be sent to the device. U
 a 48          # Set I2C address to 0x48
 w 01 FF       # Write 0x01, 0xFF to device  
 r 04          # Read 4 bytes
+EXPECT "12 34 56 78"    # Validate exact response
 wr 10 02      # Write 0x10, read 2 bytes
+EXPECT "[A-F0-9]{2} [A-F0-9]{2}"  # Validate hex pattern
 ```
+
+#### EXPECT Command (Python Script Only)
+
+The `EXPECT` command is a host-only feature that validates Arduino responses using regex patterns:
+
+**Syntax:** `EXPECT "pattern"` or `EXPECT pattern`
+
+**Examples:**
+- `EXPECT "12 34 56 78"` - Exact match
+- `EXPECT "^[A-F0-9 ]+$"` - Any hex output
+- `EXPECT "[A-F0-9]{2}"` - Contains 2-digit hex
+- `EXPECT "FF$"` - Ends with "FF"
+
+**Behavior:**
+- ✓ Continues execution if pattern matches
+- ❌ Exits script with error if pattern doesn't match
+- Uses the last Arduino response (excluding debug messages)
+- Supports full Python regex syntax
 
 
