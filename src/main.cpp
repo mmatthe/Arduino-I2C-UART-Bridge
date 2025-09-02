@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-int8_t address;
+uint8_t address;
 bool showDebug = true;
 
 void setup() {
@@ -23,6 +23,40 @@ void debug(const String& line, bool force=false) {
     }
 }
 
+int parseHexBytes(const String& input, uint8_t* bytes, int maxBytes) {
+    int byteCount = 0;
+    int startIdx = 0;
+    
+    while (startIdx < input.length() && byteCount < maxBytes) {
+        // Find next space or end of string
+        int endIdx = input.indexOf(' ', startIdx);
+        if (endIdx == -1) endIdx = input.length();
+        
+        // Extract hex byte string
+        String hexByte = input.substring(startIdx, endIdx);
+        hexByte.trim();
+        
+        if (hexByte.length() == 0) {
+            startIdx = endIdx + 1;
+            continue;
+        }
+        
+        // Convert hex string to byte
+        char* endptr;
+        long value = strtol(hexByte.c_str(), &endptr, 16);
+        
+        if (*endptr != '\0' || value < 0 || value > 255) {
+            debug("Error: Invalid hex byte '" + hexByte + "'. Must be 00-FF");
+            return -1;
+        }
+        
+        bytes[byteCount++] = (uint8_t)value;
+        startIdx = endIdx + 1;
+    }
+    
+    return byteCount;
+}
+
 void parseAddress(const char* line) {
     // Parse hex byte from line and save to address variable
     String input = String(line).trim();
@@ -31,17 +65,21 @@ void parseAddress(const char* line) {
         return;
     }
     
-    // Convert hex string to integer
-    char* endptr;
-    long addr = strtol(input.c_str(), &endptr, 16);
+    // Parse single hex byte using helper function
+    uint8_t addrByte = 0;
+    int parsed = parseHexBytes(input, &addrByte, 1);
+    if (parsed != 1) {
+        debug("Error: Invalid I2C address. Must be a single hex value between 0x08 and 0x77");
+        return;
+    }
     
-    // Check if conversion was successful and address is valid I2C range (7-bit: 0x08-0x77)
-    if (*endptr != '\0' || addr < 0x08 || addr > 0x77) {
+    // Check if address is valid I2C range (7-bit: 0x08-0x77)
+    if (addrByte < 0x08 || addrByte > 0x77) {
         debug("Error: Invalid I2C address. Must be hex value between 0x08 and 0x77");
         return;
     }
     
-    address = (int8_t)addr;
+    address = addrByte;
     debug("I2C address set to: 0x" + String(address, HEX));
 }
 
@@ -53,12 +91,17 @@ void readBytes(const char* line) {
         return;
     }
     
-    // Convert hex string to integer
-    char* endptr;
-    long numBytes = strtol(input.c_str(), &endptr, 16);
+    // Parse single hex byte using helper function
+    uint8_t countByte;
+    int parsed = parseHexBytes(input, &countByte, 1);
     
-    // Validate input
-    if (*endptr != '\0' || numBytes <= 0 || numBytes > 32) {
+    if (parsed <= 0) {
+        debug("Error: Invalid byte count. Must be hex value between 0x01 and 0x20 (1-32 bytes)");
+        return;
+    }
+    
+    int numBytes = countByte;
+    if (numBytes == 0 || numBytes > 32) {
         debug("Error: Invalid byte count. Must be hex value between 0x01 and 0x20 (1-32 bytes)");
         return;
     }
@@ -70,7 +113,7 @@ void readBytes(const char* line) {
     }
     
     // Request bytes from I2C device
-    int received = Wire.requestFrom((int)address, (int)numBytes);
+    int received = Wire.requestFrom(address, numBytes);
     if (received == 0) {
         debug("Error: No response from I2C device at address 0x" + String(address, HEX));
         return;
@@ -106,39 +149,11 @@ void writeBytes(const char* line) {
         return;
     }
     
-    // Parse space-separated hex bytes
+    // Parse hex bytes using helper function
     uint8_t bytes[32];
-    int byteCount = 0;
-    int startIdx = 0;
+    int byteCount = parseHexBytes(input, bytes, 32);
     
-    while (startIdx < input.length() && byteCount < 32) {
-        // Find next space or end of string
-        int endIdx = input.indexOf(' ', startIdx);
-        if (endIdx == -1) endIdx = input.length();
-        
-        // Extract hex byte string
-        String hexByte = input.substring(startIdx, endIdx);
-        hexByte.trim();
-        
-        if (hexByte.length() == 0) {
-            startIdx = endIdx + 1;
-            continue;
-        }
-        
-        // Convert hex string to byte
-        char* endptr;
-        long value = strtol(hexByte.c_str(), &endptr, 16);
-        
-        if (*endptr != '\0' || value < 0 || value > 255) {
-            debug("Error: Invalid hex byte '" + hexByte + "'. Must be 00-FF");
-            return;
-        }
-        
-        bytes[byteCount++] = (uint8_t)value;
-        startIdx = endIdx + 1;
-    }
-    
-    if (byteCount == 0) {
+    if (byteCount <= 0) {
         debug("Error: No valid bytes found");
         return;
     }
