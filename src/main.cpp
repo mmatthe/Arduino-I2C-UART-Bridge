@@ -181,14 +181,45 @@ void writeBytes(String input) {
     }
 }
 
+void writeReadBytes(String input) {
+    input.trim();
+    if (input.length() == 0) {
+        debug("Error: No arguments provided");
+        return;
+    }
+    
+    // Find the separator between write bytes and read count
+    int lastSpaceIdx = input.lastIndexOf(' ');
+    if (lastSpaceIdx == -1) {
+        debug("Error: Need both hex bytes to write and read count. Format: 'wr xx xx xx count'");
+        return;
+    }
+    
+    String writeHexBytes = input.substring(0, lastSpaceIdx);
+    String readCountStr = input.substring(lastSpaceIdx + 1);
+    
+    writeHexBytes.trim();
+    readCountStr.trim();
+    
+    if (writeHexBytes.length() == 0 || readCountStr.length() == 0) {
+        debug("Error: Need both hex bytes to write and read count. Format: 'wr xx xx xx count'");
+        return;
+    }
+    
+    writeBytes(writeHexBytes);
+    readBytes(readCountStr);
+}
+
 void processLine(const String& line) {
     if (line[0] == 'a') {
         parseAddress(line.substring(1));
     }
+    else if (line.startsWith("wr")) {
+        writeReadBytes(line.substring(2));
+    }
     else if (line[0] == 'r') {
         readBytes(line.substring(1));
     }
-
     else if (line[0] == 'w') {
         writeBytes(line.substring(1));
     }
@@ -196,7 +227,8 @@ void processLine(const String& line) {
         debug("Help: (xx = hex byte) \n\n"
               "a xx\\n : set target address\n"
               "w xx xx xx xx xx ...\\n : write given byte sequence\n"
-              "r xx\\n : read xx bytes from device");
+              "r xx\\n : read xx bytes from device\n"
+              "wr xx xx xx count\\n : write bytes then read count bytes");
     }
 
 }
