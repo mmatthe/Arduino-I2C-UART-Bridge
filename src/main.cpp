@@ -94,6 +94,74 @@ void readBytes(const char* line) {
 
 void writeBytes(const char* line) {
     // parse the bytes from the line and send them to the device via I2C.
+    String input = String(line).trim();
+    if (input.length() == 0) {
+        debug("Error: No bytes provided");
+        return;
+    }
+    
+    // Check if address has been set
+    if (address == 0) {
+        debug("Error: No I2C address set. Use 'a xx' command first");
+        return;
+    }
+    
+    // Parse space-separated hex bytes
+    uint8_t bytes[32];
+    int byteCount = 0;
+    int startIdx = 0;
+    
+    while (startIdx < input.length() && byteCount < 32) {
+        // Find next space or end of string
+        int endIdx = input.indexOf(' ', startIdx);
+        if (endIdx == -1) endIdx = input.length();
+        
+        // Extract hex byte string
+        String hexByte = input.substring(startIdx, endIdx);
+        hexByte.trim();
+        
+        if (hexByte.length() == 0) {
+            startIdx = endIdx + 1;
+            continue;
+        }
+        
+        // Convert hex string to byte
+        char* endptr;
+        long value = strtol(hexByte.c_str(), &endptr, 16);
+        
+        if (*endptr != '\0' || value < 0 || value > 255) {
+            debug("Error: Invalid hex byte '" + hexByte + "'. Must be 00-FF");
+            return;
+        }
+        
+        bytes[byteCount++] = (uint8_t)value;
+        startIdx = endIdx + 1;
+    }
+    
+    if (byteCount == 0) {
+        debug("Error: No valid bytes found");
+        return;
+    }
+    
+    // Send bytes via I2C
+    Wire.beginTransmission(address);
+    for (int i = 0; i < byteCount; i++) {
+        Wire.write(bytes[i]);
+    }
+    uint8_t result = Wire.endTransmission();
+    
+    if (result == 0) {
+        String output = "Wrote " + String(byteCount) + " bytes: ";
+    } else {
+        String error = "I2C transmission failed with error code: " + String(result);
+        switch (result) {
+            case 1: error += " (data too long)"; break;
+            case 2: error += " (NACK on address)"; break;
+            case 3: error += " (NACK on data)"; break;
+            case 4: error += " (other error)"; break;
+        }
+        debug(error);
+    }
 }
 
 void processLine(const String& line) {
