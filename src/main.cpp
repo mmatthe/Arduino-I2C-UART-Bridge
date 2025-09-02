@@ -47,6 +47,49 @@ void parseAddress(const char* line) {
 
 void readBytes(const char* line) {
     // parse number of bytes from line. Read from I2C and print hex-representation of read bytes to Serial
+    String input = String(line).trim();
+    if (input.length() == 0) {
+        debug("Error: No byte count provided");
+        return;
+    }
+    
+    // Convert hex string to integer
+    char* endptr;
+    long numBytes = strtol(input.c_str(), &endptr, 16);
+    
+    // Validate input
+    if (*endptr != '\0' || numBytes <= 0 || numBytes > 32) {
+        debug("Error: Invalid byte count. Must be hex value between 0x01 and 0x20 (1-32 bytes)");
+        return;
+    }
+    
+    // Check if address has been set
+    if (address == 0) {
+        debug("Error: No I2C address set. Use 'a xx' command first");
+        return;
+    }
+    
+    // Request bytes from I2C device
+    int received = Wire.requestFrom((int)address, (int)numBytes);
+    if (received == 0) {
+        debug("Error: No response from I2C device at address 0x" + String(address, HEX));
+        return;
+    }
+    
+    // Read and print received bytes in hex format
+    String output = "";
+    bool first = true;
+    while (Wire.available()) {
+        if (!first) output += " ";
+        first = false;
+        
+        uint8_t data = Wire.read();
+        if (data < 0x10) output += "0";
+        output += String(data, HEX);
+    }
+    
+    Serial.println(output.toUpperCase());
+    debug("Read " + String(received) + " bytes from I2C device");
 }
 
 void writeBytes(const char* line) {
