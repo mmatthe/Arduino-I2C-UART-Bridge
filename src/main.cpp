@@ -57,9 +57,9 @@ int parseHexBytes(const String& input, uint8_t* bytes, int maxBytes) {
     return byteCount;
 }
 
-void parseAddress(const char* line) {
+void parseAddress(String input) {
     // Parse hex byte from line and save to address variable
-    String input = String(line).trim();
+    input.trim();
     if (input.length() == 0) {
         debug("Error: No address provided");
         return;
@@ -83,9 +83,9 @@ void parseAddress(const char* line) {
     debug("I2C address set to: 0x" + String(address, HEX));
 }
 
-void readBytes(const char* line) {
+void readBytes(String input) {
     // parse number of bytes from line. Read from I2C and print hex-representation of read bytes to Serial
-    String input = String(line).trim();
+    input.trim();
     if (input.length() == 0) {
         debug("Error: No byte count provided");
         return;
@@ -100,7 +100,7 @@ void readBytes(const char* line) {
         return;
     }
     
-    int numBytes = countByte;
+    uint8_t numBytes = countByte;
     if (numBytes == 0 || numBytes > 32) {
         debug("Error: Invalid byte count. Must be hex value between 0x01 and 0x20 (1-32 bytes)");
         return;
@@ -131,13 +131,14 @@ void readBytes(const char* line) {
         output += String(data, HEX);
     }
     
-    Serial.println(output.toUpperCase());
+    output.toUpperCase();
+    Serial.println(output);
     debug("Read " + String(received) + " bytes from I2C device");
 }
 
-void writeBytes(const char* line) {
+void writeBytes(String input) {
     // parse the bytes from the line and send them to the device via I2C.
-    String input = String(line).trim();
+    input.trim();
     if (input.length() == 0) {
         debug("Error: No bytes provided");
         return;
@@ -167,6 +168,7 @@ void writeBytes(const char* line) {
     
     if (result == 0) {
         String output = "Wrote " + String(byteCount) + " bytes: ";
+        debug(output);
     } else {
         String error = "I2C transmission failed with error code: " + String(result);
         switch (result) {
@@ -181,14 +183,14 @@ void writeBytes(const char* line) {
 
 void processLine(const String& line) {
     if (line[0] == 'a') {
-        parseAddress(line+1);
+        parseAddress(line.substring(1));
     }
     else if (line[0] == 'r') {
-        readBytes(line+1);
+        readBytes(line.substring(1));
     }
 
     else if (line[0] == 'w') {
-        writeBytes(line+1);
+        writeBytes(line.substring(1));
     }
     else {
         debug("Help: (xx = hex byte) \n\n"
