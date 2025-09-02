@@ -10,15 +10,15 @@ Connect an ST LSM6DSO device, and assert its device id.
 ``` bash
 $ cat lsm6dso_who_am_I.txt
 a 6b
-wr f 1
-EXPECT 6.
+wr 0f 1   # Read one byte from register 0x0F (WHO_AM_I)
+EXPECT 6C
 $ python run_commands.py -p /dev/ttyUSB0 lsm6dso_who_am_I.txt
 Connected to I2C bridge on /dev/ttyUSB0
 Starting execution of commands from: lsm6dso_who_am_I.txt
 ---> a 6b
 ---> wr f 1
 <--- 6C
----> EXPECT "6." ✓
+---> EXPECT "6C" ✓
 ```
 
 ## Features
