@@ -25,6 +25,7 @@ class I2CCommandRunner:
         self.last_response = ""
         self.line_number = 0
         self.executed_count = 0
+        self.variables = {}
 
     def connect(self):
         """Connect to Arduino via serial port."""
@@ -54,10 +55,36 @@ class I2CCommandRunner:
         
         return command, comment
 
+    def handle_variable_assignment(self, command):
+        """Handle variable assignment (VAR=VALUE)."""
+        if '=' not in command:
+            return False
+        
+        var_name, var_value = command.split('=', 1)
+        var_name = var_name.strip()
+        var_value = var_value.strip()
+        
+        # Remove quotes if present
+        if var_value.startswith('"') and var_value.endswith('"'):
+            var_value = var_value[1:-1]
+        
+        self.variables[var_name] = var_value
+        logging.debug(f"Variable set: {var_name} = {var_value}")
+        return True
+
+    def substitute_variables(self, command):
+        """Replace variable names with their values in command."""
+        for var_name, var_value in self.variables.items():
+            command = command.replace(var_name, var_value)
+        return command
+
     def handle_expect_command(self, command):
         """Handle EXPECT command for response validation."""
         expected = command[7:].strip()
         expected = expected.strip('"')
+        
+        # Substitute variables in expected pattern
+        expected = self.substitute_variables(expected)
 
         try:
             if re.match(expected, self.last_response):
@@ -75,6 +102,13 @@ class I2CCommandRunner:
 
     def send_command(self, command):
         """Send command to Arduino and read response."""
+        # Substitute variables in command
+        original_command = command
+        command = self.substitute_variables(command)
+        
+        if original_command != command:
+            logging.debug(f"After variable substitution: {original_command} -> {command}")
+        
         logging.debug(f"Sending command: {command}")
         print(f"---> {command}")
         self.ser.write(f"{command}\n".encode())
@@ -113,6 +147,10 @@ class I2CCommandRunner:
                         logging.debug(f"Line {self.line_number}: '{command}'")
                     
                     if not command:
+                        continue
+                    
+                    # Handle variable assignment
+                    if self.handle_variable_assignment(command):
                         continue
                     
                     # Handle EXPECT command

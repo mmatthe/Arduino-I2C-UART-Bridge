@@ -9,14 +9,18 @@ Connect an ST LSM6DSO device, and assert its device id.
 
 ``` bash
 $ cat lsm6dso_who_am_I.txt
-a 6b
-wr 0f 1   # Read one byte from register 0x0F (WHO_AM_I)
+WHO_AM_I_REG=0F
+LSM6DSO_ADDR=6B
+
+a LSM6DSO_ADDR
+
+wr WHO_AM_I_REG 1
 EXPECT 6C
 $ python run_commands.py -p /dev/ttyUSB0 lsm6dso_who_am_I.txt
 Connected to I2C bridge on /dev/ttyUSB0
 Starting execution of commands from: lsm6dso_who_am_I.txt
----> a 6b
----> wr f 1
+---> a 6B
+---> wr 0F 1
 <--- 6C
 ---> EXPECT "6C" ✓
 ```
@@ -110,6 +114,27 @@ wr 10 02      # Write 0x10, read 2 bytes
 EXPECT "[A-F0-9]{2} [A-F0-9]{2}"  # Validate hex pattern
 ```
 
+#### Variables (Python Script Only)
+
+Define reusable variables in your command files to make scripts more maintainable:
+
+**Syntax:** `VARIABLE_NAME=value` or `VARIABLE_NAME="quoted value"`
+
+**Examples:**
+```bash
+# Define variables
+SENSOR_ADDR=48
+WHO_AM_I_REG=0F
+EXPECTED_ID=6C
+
+# Use variables in commands
+a SENSOR_ADDR           # Becomes: a 48
+wr WHO_AM_I_REG 1      # Becomes: wr 0F 1
+EXPECT EXPECTED_ID     # Becomes: EXPECT 6C
+```
+
+Variables are substituted in both Arduino commands and EXPECT patterns, making scripts reusable across different devices and configurations.
+
 #### EXPECT Command (Python Script Only)
 
 The `EXPECT` command is a host-only feature that validates Arduino responses using regex patterns:
@@ -121,6 +146,7 @@ The `EXPECT` command is a host-only feature that validates Arduino responses usi
 - `EXPECT "^[A-F0-9 ]+$"` - Any hex output
 - `EXPECT "[A-F0-9]{2}"` - Contains 2-digit hex
 - `EXPECT "FF$"` - Ends with "FF"
+- `EXPECT EXPECTED_VALUE` - Using variables
 
 
 
