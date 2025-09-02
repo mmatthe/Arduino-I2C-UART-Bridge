@@ -35,6 +35,7 @@ def run_command_file(port, baudrate, command_file):
         with open(command_file, 'r') as f:
             line_number = 0
             executed_count = 0
+            last_response = ""
             
             logging.info(f"Starting execution of commands from: {command_file}")
             
@@ -63,13 +64,31 @@ def run_command_file(port, baudrate, command_file):
                 if not command:
                     continue
                 
+                # Handle EXPECT command (host-only syntax)
+                if command.upper().startswith("EXPECT "):
+                    expected = command[7:].strip()
+                    if expected.startswith('"') and expected.endswith('"'):
+                        expected = expected[1:-1]  # Remove quotes
+                    
+
+                    # Read the last response from Arduino
+                    if last_response == expected:
+                        print(f"---> EXPECT \"{expected}\" : DONE")
+                    else:
+                        logging.error(f"EXPECT failed on line {line_number}")
+                        logging.error(f"Expected: \"{expected}\"")
+                        logging.error(f"Received: \"{last_response}\"")
+                        sys.exit(1)
+                    continue
+                
                 # Send command to Arduino
                 logging.debug(f"Sending command: {command}")
                 print(f"---> {command}")
                 ser.write(f"{command}\n".encode())
                 executed_count += 1
                 
-                # Read any other response from Arduino
+                # Read any response from Arduino
+                last_response = ""
                 time.sleep(0.1)
                 while ser.in_waiting > 0:
                     response = ser.readline().decode().strip()
@@ -78,6 +97,7 @@ def run_command_file(port, baudrate, command_file):
                             logging.debug(response)
                         else:
                             print(f"<--- {response}")
+                            last_response = response  # Store last non-debug response
                 
 
         logging.debug(f"Execution completed: {executed_count} commands from {line_number} lines")
