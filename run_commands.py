@@ -16,109 +16,132 @@ import re
 from datetime import datetime
 
 
-def run_command_file(port, baudrate, command_file):
-    """
-    Execute commands from file on Arduino I2C bridge.
-    
-    Args:
-        port (str): Serial port path
-        baudrate (int): Serial communication speed
-        command_file (str): Path to command file
-    """
+class I2CCommandRunner:
+    def __init__(self, port, baudrate, command_file):
+        self.port = port
+        self.baudrate = baudrate
+        self.command_file = command_file
+        self.ser = None
+        self.last_response = ""
+        self.line_number = 0
+        self.executed_count = 0
 
-    try:
-        # Connect to Arduino
-        ser = serial.Serial(port, baudrate, timeout=2)
+    def connect(self):
+        """Connect to Arduino via serial port."""
+        self.ser = serial.Serial(self.port, self.baudrate, timeout=2)
         time.sleep(0.25)  # Wait for Arduino to reset
-        logging.info(f"Connected to I2C bridge on {port}")
+        logging.info(f"Connected to I2C bridge on {self.port}")
+
+    def disconnect(self):
+        """Close serial connection."""
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+            logging.debug("Connection closed")
+
+    def parse_line(self, line):
+        """Parse command line and extract command and comment."""
+        line = line.strip()
         
-        # Read and execute commands
-        with open(command_file, 'r') as f:
-            line_number = 0
-            executed_count = 0
-            last_response = ""
-            
-            logging.info(f"Starting execution of commands from: {command_file}")
-            
-            for line in f:
-                line_number += 1
-                
-                # Strip whitespace
-                line = line.strip()
-                
-                # Skip empty lines
-                if not line:
-                    continue
-                
-                # Handle comments - strip everything after #
-                if '#' in line:
-                    command = line.split('#')[0].strip()
-                    comment = line.split('#', 1)[1].strip()
-                else:
-                    command = line
-                    comment = ""
-
-                if comment:
-                    logging.debug(f"Line {line_number}: '{command}' # {comment}")
-                else:
-                    logging.debug(f"Line {line_number}: '{command}'")
-                if not command:
-                    continue
-                
-                # Handle EXPECT command (host-only syntax)
-                if command.upper().startswith("EXPECT "):
-                    expected = command[7:].strip()
-                    expected = expected.strip('"')
-
-                    # Check if the expected string matches using regex
-                    try:
-                        if re.match(expected, last_response):
-                            print(f"---> EXPECT \"{expected}\" ✓")
-                        else:
-                            logging.error(f"EXPECT failed on line {line_number}")
-                            logging.error(f"Expected pattern: \"{expected}\"")
-                            logging.error(f"Received: \"{last_response}\"")
-                            sys.exit(1)
-                    except re.error as e:
-                        logging.error(f"EXPECT failed on line {line_number}: Invalid regex pattern")
-                        logging.error(f"Pattern: \"{expected}\"")
-                        logging.error(f"Regex error: {e}")
-                        sys.exit(1)
-                    continue
-                
-                # Send command to Arduino
-                logging.debug(f"Sending command: {command}")
-                print(f"---> {command}")
-                ser.write(f"{command}\n".encode())
-                executed_count += 1
-                
-                # Read any response from Arduino
-                last_response = ""
-                time.sleep(0.1)
-                while ser.in_waiting > 0:
-                    response = ser.readline().decode().strip()
-                    if response:
-                        if response.startswith("[DBG]"):
-                            logging.debug(response)
-                        else:
-                            print(f"<--- {response}")
-                            last_response = response  # Store last non-debug response
-                
-
-        logging.debug(f"Execution completed: {executed_count} commands from {line_number} lines")
+        if not line:
+            return None, None
         
-    except FileNotFoundError:
-        logging.error(f"Command file '{command_file}' not found")
-        sys.exit(1)
-    except serial.SerialException as e:
-        logging.error(f"Serial connection error on {port}: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        sys.exit(1)
-    finally:
-        ser.close()
-        logging.debug("Connection closed")
+        if '#' in line:
+            command = line.split('#')[0].strip()
+            comment = line.split('#', 1)[1].strip()
+        else:
+            command = line
+            comment = ""
+        
+        return command, comment
+
+    def handle_expect_command(self, command):
+        """Handle EXPECT command for response validation."""
+        expected = command[7:].strip()
+        expected = expected.strip('"')
+
+        try:
+            if re.match(expected, self.last_response):
+                print(f"---> EXPECT \"{expected}\" ✓")
+            else:
+                logging.error(f"EXPECT failed on line {self.line_number}")
+                logging.error(f"Expected pattern: \"{expected}\"")
+                logging.error(f"Received: \"{self.last_response}\"")
+                sys.exit(1)
+        except re.error as e:
+            logging.error(f"EXPECT failed on line {self.line_number}: Invalid regex pattern")
+            logging.error(f"Pattern: \"{expected}\"")
+            logging.error(f"Regex error: {e}")
+            sys.exit(1)
+
+    def send_command(self, command):
+        """Send command to Arduino and read response."""
+        logging.debug(f"Sending command: {command}")
+        print(f"---> {command}")
+        self.ser.write(f"{command}\n".encode())
+        self.executed_count += 1
+        
+        # Read response from Arduino
+        self.last_response = ""
+        time.sleep(0.1)
+        while self.ser.in_waiting > 0:
+            response = self.ser.readline().decode().strip()
+            if response:
+                if response.startswith("[DBG]"):
+                    logging.debug(response)
+                else:
+                    print(f"<--- {response}")
+                    self.last_response = response
+
+    def execute_commands(self):
+        """Execute all commands from the command file."""
+        try:
+            self.connect()
+            logging.info(f"Starting execution of commands from: {self.command_file}")
+            
+            with open(self.command_file, 'r') as f:
+                for line in f:
+                    self.line_number += 1
+                    
+                    command, comment = self.parse_line(line)
+                    
+                    if command is None:
+                        continue
+                    
+                    if comment:
+                        logging.debug(f"Line {self.line_number}: '{command}' # {comment}")
+                    else:
+                        logging.debug(f"Line {self.line_number}: '{command}'")
+                    
+                    if not command:
+                        continue
+                    
+                    # Handle EXPECT command
+                    if command.upper().startswith("EXPECT "):
+                        self.handle_expect_command(command)
+                        continue
+                    
+                    # Send regular command
+                    self.send_command(command)
+
+            logging.debug(f"Execution completed: {self.executed_count} commands from {self.line_number} lines")
+            
+        except FileNotFoundError:
+            logging.error(f"Command file '{self.command_file}' not found")
+            sys.exit(1)
+        except serial.SerialException as e:
+            logging.error(f"Serial connection error on {self.port}: {e}")
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            sys.exit(1)
+        finally:
+            self.disconnect()
+
+
+def run_command_file(port, baudrate, command_file):
+    """Execute commands from file on Arduino I2C bridge."""
+    runner = I2CCommandRunner(port, baudrate, command_file)
+    runner.execute_commands()
 
 
 def main():
